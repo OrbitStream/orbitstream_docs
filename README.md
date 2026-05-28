@@ -4,6 +4,7 @@
 
 [![Stellar](https://img.shields.io/badge/Stellar-Soroban-7C68EE)](https://stellar.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/orbitstream/orbitstream_docs/actions/workflows/ci.yml/badge.svg)](https://github.com/orbitstream/orbitstream_docs/actions/workflows/ci.yml)
 
 ---
 
