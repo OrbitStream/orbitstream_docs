@@ -1,6 +1,274 @@
-openapi: 3.0.0
+openapi: 3.0.3
 info:
-  title: OrbitStream API
+  title: Stellar Checkout API
   version: 0.1.0
-paths: {}
-components: {}
+  description: Stripe-like checkout for the Stellar network
+
+servers:
+  - url: http://localhost:3001
+    description: Local development
+
+paths:
+  /merchants/register:
+    post:
+      summary: Register a new merchant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [walletAddress, businessName, email]
+              properties:
+                walletAddress:
+                  type: string
+                  example: GABC...1234
+                businessName:
+                  type: string
+                  example: Acme Corp
+                email:
+                  type: string
+                  format: email
+                  example: merchant@example.com
+      responses:
+        '201':
+          description: Merchant created
+
+  /auth/login:
+    post:
+      summary: Wallet-based login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [walletAddress]
+              properties:
+                walletAddress:
+                  type: string
+      responses:
+        '200':
+          description: JWT token returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  wallet:
+                    type: string
+
+  /merchants/me:
+    get:
+      summary: Get merchant profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Merchant profile
+    patch:
+      summary: Update merchant profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                businessName:
+                  type: string
+                email:
+                  type: string
+                logoUrl:
+                  type: string
+      responses:
+        '200':
+          description: Updated
+
+  /merchants/me/api-keys:
+    post:
+      summary: Generate API key
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [environment]
+              properties:
+                environment:
+                  type: string
+                  enum: [testnet, mainnet]
+      responses:
+        '201':
+          description: API key generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                    description: Full API key (shown once)
+                  keyPrefix:
+                    type: string
+    get:
+      summary: List API keys
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of key prefixes
+
+  /merchants/me/api-keys/{id}:
+    delete:
+      summary: Revoke API key
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Key revoked
+
+  /merchants/me/webhook:
+    patch:
+      summary: Set webhook URL
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [webhookUrl]
+              properties:
+                webhookUrl:
+                  type: string
+                  format: uri
+      responses:
+        '200':
+          description: Webhook configured
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhookUrl:
+                    type: string
+                  webhookSecret:
+                    type: string
+
+  /v1/checkout/sessions:
+    post:
+      summary: Create checkout session
+      security:
+        - apiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, asset]
+              properties:
+                amount:
+                  type: number
+                  example: 25.00
+                asset:
+                  type: string
+                  example: USDC
+                assetIssuer:
+                  type: string
+                successUrl:
+                  type: string
+                  format: uri
+                cancelUrl:
+                  type: string
+                  format: uri
+                metadata:
+                  type: object
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  url:
+                    type: string
+                  amount:
+                    type: string
+                  asset:
+                    type: string
+                  status:
+                    type: string
+                  expiresAt:
+                    type: string
+                    format: date-time
+
+  /v1/checkout/sessions/{id}:
+    get:
+      summary: Get session status (public)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session details
+
+  /v1/checkout/sessions/{id}/cancel:
+    post:
+      summary: Cancel session
+      security:
+        - apiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session cancelled
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service healthy
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      responses:
+        '200':
+          description: Metrics output
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key (sk_test_... or sk_live_...)

@@ -1,29 +1,24 @@
-# OrbitStream Docs
+# Stellar Checkout Documentation
 
 ## Project
-Documentation for OrbitStream — a Stellar-based token streaming payroll platform.
+Documentation for Stellar Checkout — a Stripe-like merchant payment gateway for Stellar.
 
 ## Structure
 architecture/
-  overview.md         - full system architecture
-  contract.md         - contract design decisions
-  backend.md          - backend service design
-  frontend.md         - frontend design
-
-contract/
-  spec.md             - every function, param, return value documented
-  math.md             - claimable formula with examples
-  events.md           - all contract events
-
+  overview.md              - system architecture
+  backend.md               - backend service design
+  frontend.md              - frontend design
+  contract.md              - escrow contract design
 api/
-  openapi.yaml        - full REST API spec
-
+  openapi.yaml             - REST API specification
+contract/
+  spec.md                  - escrow contract functions
+  events.md                - contract events
 guides/
-  employer-guide.md   - how to create and manage streams
-  employee-guide.md   - how to claim salary
-
+  integration-guide.md     - how to integrate Stellar Checkout
+  merchant-setup.md        - how to register and configure
 security/
-  threat-model.md     - known attack vectors + mitigations
+  threat-model.md          - security considerations
 
 ## Rules
 - Keep spec.md in sync with actual contract at all times

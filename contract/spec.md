@@ -1,92 +1,98 @@
-# Contract Specification
-
-Canonical list of streaming contract functions, parameters, return values, and example calls. These function signatures are the canonical developer-facing spec used by the backend and frontend when constructing or validating on-chain transactions and off-chain records.
-
----
-
-## Principal Concepts
-
-- `Stream`: a linear token flow defined by `employer`, `employee`, `asset`, `rate` (tokens/sec), `start`, `end`, and `total`.
-- `StreamId`: unique identifier for a `Stream` (UUID or on-chain reference).
-- `Withdrawn`: amount already claimed from a stream.
-
----
+# Escrow Contract Specification
 
 ## Functions
 
-1. CreateStream
+### create_escrow
 
-- Purpose: create a new payroll stream and reserve funds (off-chain record + on-chain funding transaction).
-- Signature:
-  - `CreateStream(employer: PublicKey, employee: PublicKey, asset: Asset, rate: Decimal, start: Timestamp, end: Timestamp, total: Decimal) -> StreamId`
-- Side-effects: persists stream in Postgres, enqueues funding job, emits `StreamCreated` event.
-- Example request (API):
+Creates a new escrow, locking funds from the buyer.
 
-```json
-{
-  "employer": "G...EMP",
-  "employee": "G...EMP2",
-  "asset": { "code": "PAY", "issuer": "G...ISS" },
-  "rate": "0.0001157407", // tokens/sec (~10 tokens/day)
-  "start": 1700000000,
-  "end": 1702592000,
-  "total": "25920"
-}
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| buyer | Address | Buyer's Stellar address (must sign) |
+| seller | Address | Seller's Stellar address |
+| token | Address | Token contract address |
+| amount | u128 | Amount to escrow |
+| timeout_seconds | u64 | Seconds until buyer can refund |
+
+**Returns:** `u64` — escrow ID
+
+**Errors:**
+- `InvalidAmount` — amount is 0
+- `InvalidTimeout` — timeout is 0
+
+**Example:**
+```rust
+let escrow_id = client.create_escrow(&buyer, &seller, &token, &1000, &3600);
+// escrow_id = 1
 ```
 
-2. FundStream
+---
 
-- Purpose: ensure on-chain funds are allocated (may be combined with `CreateStream` depending on custody model).
-- Signature:
-  - `FundStream(streamId: StreamId, fundingAccount: PublicKey, amount: Decimal) -> TransactionHash`
-- Example (worker): constructs and submits a Stellar payment or escrow-like transaction; returns transaction hash.
+### release
 
-3. Claim
+Releases escrowed funds to the seller.
 
-- Purpose: employee claims available (claimable) tokens from a stream.
-- Signature:
-  - `Claim(streamId: StreamId, claimant: PublicKey, destination: PublicKey) -> TransactionHash | ClaimReceipt`
-- Validation: backend verifies claimant matches `employee` and computes claimable amount via canonical formula (see `contract/math.md`).
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| escrow_id | u64 | ID of the escrow to release |
 
-4. CancelStream
+**Returns:** `()`
 
-- Purpose: cancel a stream (partial refunds based on elapsed time and previously withdrawn amounts).
-- Signature:
-  - `CancelStream(streamId: StreamId, requester: PublicKey, cancelTimestamp: Timestamp) -> TransactionHash`
-- Notes: cancellation rules are policy-defined (who may cancel, notice periods, admin roles).
+**Errors:**
+- `EscrowNotFound` — escrow doesn't exist
+- `EscrowAlreadySettled` — already released or refunded
+- `Unauthorized` — caller is not the seller
 
-5. PauseStream / ResumeStream
-
-- Purpose: temporarily pause or resume accrual.
-- Signature:
-  - `PauseStream(streamId: StreamId, by: PublicKey, at: Timestamp) -> Void`
-  - `ResumeStream(streamId: StreamId, by: PublicKey, at: Timestamp) -> Void`
-- Side-effects: adjust effective accrual windows; indexer and math must account for paused intervals.
-
-6. GetStream / ListStreams
-
-- Read APIs used by frontend and indexer.
-- `GetStream(streamId) -> StreamRecord` and `ListStreams(filter...) -> StreamRecord[]`.
+**Example:**
+```rust
+client.release(&escrow_id);
+```
 
 ---
 
-## Events
+### refund
 
-- `StreamCreated(streamId, employer, employee, asset, rate, start, end, total)`
-- `StreamFunded(streamId, txHash, amount)`
-- `Claimed(streamId, claimant, amount, txHash)`
-- `StreamCancelled(streamId, by, timestamp, refunded)`
-- `StreamPaused(streamId, by, at)`
-- `StreamResumed(streamId, by, at)`
+Refunds escrowed funds to the buyer after timeout.
+
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| escrow_id | u64 | ID of the escrow to refund |
+
+**Returns:** `()`
+
+**Errors:**
+- `EscrowNotFound` — escrow doesn't exist
+- `EscrowAlreadySettled` — already released or refunded
+- `TimeoutNotReached` — timeout hasn't passed yet
+- `Unauthorized` — caller is not the buyer
+
+**Example:**
+```rust
+// Advance ledger time past timeout
+client.refund(&escrow_id);
+```
 
 ---
 
-## Example Stellar transaction flow (high-level)
+### get_escrow
 
-- 1. Worker builds a payment or signed transaction to transfer `total` tokens from `employer` (or platform custody) to a distribution account or to pre-authorize claimable payouts.
-- 2. Transaction includes memo or manage-data entries linking to `streamId` for indexer correlation.
-- 3. Indexer watches Horizon for the transaction, links it to the `Stream` record, and updates `onChainBalance`.
+Returns escrow details.
 
-## Notes
+**Parameters:**
+| Name | Type | Description |
+|------|------|-------------|
+| escrow_id | u64 | ID of the escrow |
 
-- Keep `contract/spec.md` in strict sync with implementation and recorded examples of actual Stellar transactions used in production or testnet.
+**Returns:** `Escrow` struct
+
+**Errors:**
+- `EscrowNotFound` — escrow doesn't exist
+
+**Example:**
+```rust
+let escrow = client.get_escrow(&1);
+assert_eq!(escrow.status, EscrowStatus::Active);
+```
