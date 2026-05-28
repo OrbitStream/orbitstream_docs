@@ -40,6 +40,58 @@
 **Attack:** Attacker connects a different wallet to access another merchant's dashboard.
 **Mitigation:** JWT is bound to wallet address. Dashboard only shows data for the authenticated wallet.
 
+## SEP Protocol Integration
+
+### Threat: SEP-10 Challenge Replay
+**Attack:** Attacker replays a captured SEP-10 challenge to impersonate a merchant.
+**Mitigation:** Challenge transactions include a nonce and are bound to OrbitStream's domain. Expired challenges are rejected.
+
+### Threat: SEP-12 Data Leak
+**Attack:** KYC data intercepted during fiat settlement onboarding.
+**Mitigation:** KYC data is sent directly to the anchor's SEP-12 endpoint over TLS. OrbitStream never stores KYC documents.
+
+### Threat: SEP-24 Iframe Phishing
+**Attack:** Merchant injects a malicious URL as the anchor iframe target.
+**Mitigation:** Anchor iframe URLs are fetched server-side from the anchor's TOML file. Merchants cannot inject arbitrary URLs.
+
+### Threat: Malicious Anchor
+**Attack:** A fraudulent anchor intercepts fiat settlement funds.
+**Mitigation:** OrbitStream validates anchor TOML files and checks SEP compliance before enabling fiat settlement for an anchor.
+
+## Muxed Accounts
+
+### Threat: Muxed Account Spoofing
+**Attack:** Attacker creates a muxed account that routes to their own master account.
+**Mitigation:** Muxed accounts are derived from the merchant's Stellar account. Only the merchant's master account can authorize withdrawals.
+
+### Threat: Session Hijacking via Muxed ID
+**Attack:** Attacker reuses a muxed account ID from a previous session.
+**Mitigation:** Muxed IDs are single-use and expire with the checkout session.
+
+## Claimable Balances
+
+### Threat: Premature Claim
+**Attack:** Seller claims funds before delivering goods.
+**Mitigation:** Claimable balance predicates enforce the timeout at the protocol level. No off-chain check needed.
+
+### Threat: Double-Claim
+**Attack:** Claimant tries to claim the same balance twice.
+**Mitigation:** Stellar protocol guarantees a claimable balance can only be claimed once.
+
+### Threat: Stale Balance
+**Attack:** Funds locked indefinitely in an unclaimed balance.
+**Mitigation:** Unclaimed balances are automatically returned to the creator after the predicate timeout.
+
+## Built-in DEX
+
+### Threat: Price Manipulation
+**Attack:** Attacker manipulates DEX order book to change the conversion rate mid-checkout.
+**Mitigation:** DEX prices are fetched at session creation. The quoted amount is locked for the session duration.
+
+### Threat: Slippage
+**Attack:** DEX rate changes between quote and execution, causing the merchant to receive less than expected.
+**Mitigation:** Path payments use strict send/receive amounts. If the rate changes beyond a configurable threshold, the payment fails safely.
+
 ## Escrow Contract
 
 ### Threat: Premature Refund

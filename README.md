@@ -1,20 +1,11 @@
-# 📚 OrbitStream Documentation
-
-> Real-time token streaming on Stellar — official technical documentation.
+# OrbitStream Documentation
 
 [![Stellar](https://img.shields.io/badge/Stellar-Soroban-7C68EE)](https://stellar.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/orbitstream/orbitstream_docs/actions/workflows/ci.yml/badge.svg)](https://github.com/orbitstream/orbitstream_docs/actions/workflows/ci.yml)
 
----
+> **Technical documentation for OrbitStream — a Stripe-like merchant payment gateway for Stellar.**
 
-## What is OrbitStream?
-
-OrbitStream is a DeFi protocol built on Stellar that enables **continuous, per-second token streaming**. Instead of sending lump-sum payments, senders lock tokens into a Soroban smart contract and recipients accrue them every second — claimable at any time.
-
-```
-Sender locks 1,000 XLM → contract streams 0.0347 XLM/sec → Recipient claims anytime
-```
+OrbitStream provides the missing merchant layer for Stellar: a hosted checkout page, embeddable widget, JS SDK, and webhook system — so any merchant can start accepting Stellar payments in under 10 minutes.
 
 ---
 
@@ -22,34 +13,66 @@ Sender locks 1,000 XLM → contract streams 0.0347 XLM/sec → Recipient claims 
 
 | Resource | Description |
 |----------|-------------|
-| [Getting Started](./docs/getting-started.md) | Set up and run OrbitStream locally |
-| [Smart Contracts](./docs/contracts.md) | Contract API, types, and error codes |
-| [REST API](./docs/api.md) | Full backend API reference |
-| [WebSocket Events](./docs/websocket.md) | Real-time event subscription |
-| [Integration Guide](./docs/integration.md) | SDK usage and code examples |
-| [Deployment](./docs/deployment.md) | Deploy contracts, backend, and frontend |
-| [Contributing](./docs/contributing.md) | How to contribute to OrbitStream |
+| [Architecture Overview](./architecture/overview.md) | System design and data flow |
+| [Backend Design](./architecture/backend.md) | API endpoints, modules, database schema |
+| [Frontend Design](./architecture/frontend.md) | Pages, components, hooks, widget |
+| [Stellar Features](./architecture/stellar-features.md) | SEP protocols, DEX, muxed accounts, claimable balances |
+| [Escrow Architecture](./architecture/contract.md) | Claimable Balances + Soroban escrow |
+| [Contract Spec](./contract/spec.md) | Escrow contract functions and types |
+| [API Reference](./api/openapi.yaml) | OpenAPI specification |
+| [Integration Guide](./guides/integration-guide.md) | SDK usage, widget, webhooks |
+| [Merchant Setup](./guides/merchant-setup.md) | Registration, API keys, fiat settlement |
+| [Roadmap](./roadmap.md) | MVP phases and timeline |
+| [Competitive Landscape](./competitive.md) | How OrbitStream compares |
+| [Security](./security/threat-model.md) | Threat model and mitigations |
 
 ---
 
-## Protocol Overview
+## How It Works
 
 ```
-┌─────────────────────────────────────────────────┐
-│           OrbitStream Frontend (Next.js)         │
-│   Freighter wallet · Stream dashboard · Live UI  │
-└──────────────┬──────────────────┬───────────────┘
-               │ REST             │ WebSocket
-┌──────────────▼──────────────────▼───────────────┐
-│           OrbitStream Backend (NestJS)           │
-│   JWT auth · Stream API · Stellar Horizon · WS   │
-└──────────────────────┬──────────────────────────┘
-                       │ Soroban RPC
-┌──────────────────────▼──────────────────────────┐
-│      OrbitStream Contract (Rust/Soroban)         │
-│   create · claim · pause · resume · cancel       │
-└─────────────────────────────────────────────────┘
+Customer                       OrbitStream                    Merchant
+--------                       ---------                    --------
+   |                                |                          |
+   |  Click "Pay"                   |                          |
+   |------------------------------->|                          |
+   |                                |                          |
+   |  Checkout page loads           |                          |
+   |  (shows amount + asset options)|                          |
+   |<-------------------------------|                          |
+   |                                |                          |
+   |  Select asset, scan QR         |                          |
+   |  or connect wallet             |                          |
+   |------------------------------->|                          |
+   |                                |                          |
+   |  Sign payment transaction      |                          |
+   |------------------------------->|                          |
+   |                                |  Detect payment on       |
+   |                                |  Stellar ledger          |
+   |                                |  (memo or muxed account) |
+   |                                |                          |
+   |                                |  Webhook: payment.confirmed
+   |                                |------------------------->|
+   |                                |                          |
+   |  Confirmation screen           |                          |
+   |<-------------------------------|                          |
 ```
+
+---
+
+## Stellar-Native Features
+
+OrbitStream is built on Stellar's existing primitives:
+
+| Feature | Description |
+|---------|-------------|
+| **SEP-10** | Wallet-based authentication |
+| **SEP-24** | Fiat settlement via anchor iframe |
+| **Built-in DEX** | Multi-asset acceptance with auto-conversion |
+| **Muxed Accounts** | Payment matching without memos |
+| **Claimable Balances** | Escrow without smart contracts |
+
+See [Stellar Features](./architecture/stellar-features.md) for details.
 
 ---
 
@@ -57,49 +80,14 @@ Sender locks 1,000 XLM → contract streams 0.0347 XLM/sec → Recipient claims 
 
 | Repo | Purpose | Language |
 |------|---------|----------|
-| [orbitstream-contracts](https://github.com/OrbitStream/orbitstream-contracts) | Soroban smart contracts | Rust |
-| [OrbitStream_backend](https://github.com/OrbitStream/OrbitStream_backend) | REST API + WebSocket | TypeScript/NestJS |
-| [orbitstream-frontend](https://github.com/OrbitStream/orbitstream-frontend) | Web dashboard | TypeScript/Next.js |
-| [orbitstream-docs](https://github.com/OrbitStream/orbitstream-docs) | This documentation | Markdown |
-
----
-
-## Stream Lifecycle
-
-```
-                    ┌──────────┐
-                    │  Active  │◄──────────────────┐
-                    └────┬─────┘                   │
-              pause()    │          resume()        │
-                    ┌────▼─────┐                   │
-                    │  Paused  │───────────────────►│
-                    └────┬─────┘
-              cancel()   │    cancel() / admin_cancel()
-                    ┌────▼──────────────────────────┐
-                    │          Cancelled             │
-                    │  recipient ← earned tokens     │
-                    │  sender   ← unearned refund    │
-                    └───────────────────────────────┘
-              (end_time reached + fully claimed)
-                    ┌──────────────┐
-                    │  Completed   │
-                    └──────────────┘
-```
-
----
-
-## Use Cases
-
-| Use Case | Description |
-|----------|-------------|
-| 💼 **Payroll** | Pay employees per second. No more month-end payroll runs. |
-| 📱 **Subscriptions** | Charge per second of usage. Users pay exactly what they consume. |
-| 🎓 **Grants** | Stream funding to builders. Automatic, milestone-free disbursement. |
-| 🤝 **Vesting** | Stream token vesting to team members. Transparent and unstoppable. |
-| 🎮 **Gaming** | Reward players per second of active play. |
+| [orbitstream_backend](https://github.com/OrbitStream/orbitstream_backend) | REST API + payment detection | TypeScript/NestJS |
+| [orbitstream_contracts](https://github.com/OrbitStream/orbitstream_contracts) | Escrow smart contract | Rust/Soroban |
+| [orbitstream_frontend](https://github.com/OrbitStream/orbitstream_frontend) | Checkout UI + dashboard | TypeScript/Next.js |
+| [@orbitstream/sdk](https://github.com/OrbitStream/orbitstream-sdk) | JS/TS integration SDK | TypeScript |
+| orbitstream_docs | This documentation | Markdown |
 
 ---
 
 ## License
 
-MIT License. Copyright (c) 2026 OrbitStream Protocol.
+MIT License. Copyright (c) 2026 OrbitStream.
