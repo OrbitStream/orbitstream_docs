@@ -1,3 +1,12 @@
 {
-  "line-length": false
+  "line-length": false,
+  "blanks-around-lists": false,
+  "blanks-around-fences": false,
+  "blanks-around-tables": false,
+  "blanks-around-headings": false,
+  "no-bare-urls": false,
+  "fenced-code-language": false,
+  "table-column-style": false,
+  "single-title": false,
+  "no-trailing-spaces": false
 }
