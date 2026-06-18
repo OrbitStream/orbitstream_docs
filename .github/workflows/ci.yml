@@ -24,6 +24,9 @@ jobs:
           args: >-
             --verbose
             --no-progress
-            --exclude-mail
+            --exclude 'competitive\.md'
+            --exclude 'roadmap\.md'
+            --exclude 'orbitstream-sdk'
+            --exclude 'docs/contributing\.md'
             '**/*.md'
           fail: true
