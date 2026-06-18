@@ -1,0 +1,5 @@
+exclude = [
+  "competitive.md",
+  "roadmap.md",
+  "https://github.com/OrbitStream/orbitstream-sdk"
+]
